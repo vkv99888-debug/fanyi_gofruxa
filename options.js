@@ -1,0 +1,11 @@
+const API_URL="https://www.gofruxa.com/fanyi/api.php";
+const messageEl=document.getElementById("message"),authForm=document.getElementById("authForm"),credentialForm=document.getElementById("credentialForm"),userStatus=document.getElementById("userStatus"),emailEl=document.getElementById("email"),passwordEl=document.getElementById("password"),appIdEl=document.getElementById("appId"),secretKeyEl=document.getElementById("secretKey"),logoutBtn=document.getElementById("logoutBtn");
+let token="";
+function show(m,e){messageEl.textContent=m;messageEl.className="message"+(e?" error":"")}
+async function api(action,data){const headers={"Content-Type":"application/json"};if(token)headers.Authorization="Bearer "+token;const res=await fetch(API_URL+"?action="+encodeURIComponent(action),{method:"POST",headers,body:JSON.stringify(data||{})});const json=await res.json().catch(()=>({ok:false,error:"服务器返回异常"}));if(!res.ok||!json.ok)throw new Error(json.error||"请求失败");return json}
+function setLoggedIn(email,info){authForm.classList.add("hidden");credentialForm.classList.remove("hidden");userStatus.textContent="当前账户："+email+(info&&info.has_baidu_credentials?"，已保存 APP ID："+info.baidu_app_id:"，尚未保存百度翻译配置");if(info&&info.baidu_app_id)appIdEl.value=info.baidu_app_id}
+async function loadSession(){const items=await chrome.storage.local.get(["fanyiAuthToken","fanyiEmail"]);token=items.fanyiAuthToken||"";if(!token)return;try{const me=await api("me");setLoggedIn(me.email,me)}catch(e){await chrome.storage.local.remove(["fanyiAuthToken","fanyiEmail"]);token=""}}
+authForm.addEventListener("submit",async e=>{e.preventDefault();const action=e.submitter&&e.submitter.dataset.action||"login";try{const data=await api(action,{email:emailEl.value,password:passwordEl.value});token=data.token;await chrome.storage.local.set({fanyiAuthToken:data.token,fanyiEmail:data.email});show(action==="register"?"注册成功":"登录成功");await loadSession()}catch(err){show(err.message,true)}});
+credentialForm.addEventListener("submit",async e=>{e.preventDefault();try{await api("save_credentials",{app_id:appIdEl.value,secret_key:secretKeyEl.value});secretKeyEl.value="";show("百度翻译配置已保存，插件可直接使用");await loadSession()}catch(err){show(err.message,true)}});
+logoutBtn.addEventListener("click",async()=>{await chrome.storage.local.remove(["fanyiAuthToken","fanyiEmail"]);location.reload()});
+loadSession();
